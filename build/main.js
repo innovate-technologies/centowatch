@@ -17,9 +17,7 @@ function ensureCentovaServicesRunning()       {
   }
 
   const statuses                = ret.stdout.toString().split("\n");
-  // Lines of the form:
-  //   servicename: (not|) running (pid xxx)
-  const allStarted       = statuses.every((status) => !status.includes("not running"));
+  const allStarted       = statuses.every((status) => status.includes("running (pid"));
 
   if (allStarted) {
     return true;
