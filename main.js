@@ -98,6 +98,7 @@ function killCentovaResourceHogs() {
 
     // Now kill the process
     const pid: number = iterator[0];
+    console.error("killCentovaResourceHogs: SIGKILL " + pid);
     const ret = child_process.spawnSync("/bin/kill", ["-9", pid.toString()]);
 
     if (ret.error) {
