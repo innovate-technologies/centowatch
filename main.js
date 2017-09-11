@@ -16,7 +16,7 @@ function ensureCentovaServicesRunning(): bool {
     return false;
   }
 
-  const statuses: Array<string> = ret.stdout.toString().split("\n");
+  const statuses: Array<string> = ret.stdout.toString().trim().split("\n");
   const allStarted: bool = statuses.every((status) => status.includes("running (pid"));
 
   if (allStarted) {
@@ -46,8 +46,8 @@ type ProcessUsageInfo = {
 function getTopProcessesPerCpuUsage(): ?Array<ProcessUsageInfo> {
   try {
     const output = child_process.execSync("top -b -n1 | head -n 12 | tail -n +8");
-    const processes = output.toString().split("\n");
-    return processes.filter((line) => (line.trim(), line)).map((line) => {
+    const processes = output.toString().trim().split("\n");
+    return processes.map((line) => {
       const p = line.split(/ +/);
       //   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
       return { user: p[1], pid: parseInt(p[0], 10), cpuUsage: parseFloat(p[8], 10), };
