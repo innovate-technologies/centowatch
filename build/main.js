@@ -7,7 +7,7 @@ const child_process = require("child_process");
 // Check if Centova services are running: if not, restart them
 function ensureCentovaServicesRunning()       {
   const ret = child_process.spawnSync("/usr/local/centovacast/centovacast", ["status"], {
-    timeout: 2000,
+    timeout: 60000,
   });
 
   if (ret.error) {
@@ -25,7 +25,7 @@ function ensureCentovaServicesRunning()       {
 
   console.error("ensureCentovaServicesRunning: Restarting services");
   const restartRet = child_process.spawnSync("/usr/local/centovacast/centovacast", ["start"], {
-    timeout: 2000,
+    timeout: 60000,
   });
 
   if (restartRet.error) {

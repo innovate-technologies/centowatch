@@ -25,7 +25,7 @@ function ensureCentovaServicesRunning(): bool {
 
   console.error("ensureCentovaServicesRunning: Restarting services");
   const restartRet = child_process.spawnSync("/usr/local/centovacast/centovacast", ["start"], {
-    timeout: 2000,
+    timeout: 60000,
   });
 
   if (restartRet.error) {
