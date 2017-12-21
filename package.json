@@ -1,0 +1,12 @@
+{
+  "name": "centowatch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build/main.js",
+  "dependencies": {
+    "node-fetch": "^1.7.3"
+  },
+  "devDependencies": {},
+  "author": "Léo Lam <leo@innovatetechnologi.es>",
+  "license": "GPLv2"
+}

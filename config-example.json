@@ -1,0 +1,6 @@
+{
+  "hub": {
+    "base": "https://example.com",
+    "token": "xxxxx"
+  }
+}
