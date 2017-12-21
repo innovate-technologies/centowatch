@@ -111,7 +111,16 @@ function killCentovaResourceHogs() {
   }
 }
 
+function isUpdateRunning(): bool {
+  const ret = child_process.spawnSync("/usr/bin/pgrep", ["-f", "/usr/local/centovacast/sbin/update"]);
+  return ret.status === 0;
+}
+
 function mainLoop() {
+  if (isUpdateRunning()) {
+    return;
+  }
+
   ensureCentovaServicesRunning();
 
   // Check if Centova processes (streaming software) are using too much CPU (>85%)
