@@ -2,35 +2,36 @@
 // Licensed under GPLv2 - Copyright 2017 The Innovating Group
 //      
 
-const child_process = require("child_process");
+const { exec, log, logError, shell } = require("./util");
 
 // Check if Centova services are running: if not, restart them
-function ensureCentovaServicesRunning()       {
-  const ret = child_process.spawnSync("/usr/local/centovacast/centovacast", ["status"], {
-    timeout: 60000,
-  });
-
-  if (ret.error) {
-    console.error("ensureCentovaServicesRunning: Failed to check status");
-    console.error(ret.error);
+async function ensureServicesRunning()                {
+  try {
+    const ret = await exec("/usr/local/centovacast/centovacast", ["status"], { timeout: 60000 });
+    const statuses                = ret.stdout.toString().trim().split("\n");
+    const allStarted       = statuses.every((status) => status.includes("running (pid"));
+    if (allStarted) {
+      return true;
+    }
+  } catch (error) {
+    logError(error, "ensureServicesRunning: Failed to check status");
     return false;
   }
 
-  const statuses                = ret.stdout.toString().trim().split("\n");
-  const allStarted       = statuses.every((status) => status.includes("running (pid"));
+  log("ensureServicesRunning: Restarting services");
+  try {
+    await exec("/usr/local/centovacast/centovacast", ["start"], { timeout: 60000 });
+  } catch (error) {
+    logError(error, "ensureServicesRunning: Failed to restart services");
 
-  if (allStarted) {
-    return true;
-  }
-
-  console.error("ensureCentovaServicesRunning: Restarting services");
-  const restartRet = child_process.spawnSync("/usr/local/centovacast/centovacast", ["start"], {
-    timeout: 60000,
-  });
-
-  if (restartRet.error) {
-    console.error("ensureCentovaServicesRunning: Failed to restart services");
-    console.error(restartRet.error);
+    if (error.stderr.toString().includes("An another FPM instance seems to already listen")) {
+      log("ensureServicesRunning: Trying to clean up FPM instance");
+      try {
+        await exec("rm", ["/usr/local/centovacast/var/run/cc-appserver.sock"]);
+      } catch (error_) {
+        logError(error_, "ensureServicesRunning: Failed to clean up FPM instance");
+      }
+    }
     return false;
   }
 
@@ -43,30 +44,21 @@ function ensureCentovaServicesRunning()       {
                    
   
 
-function getTopProcessesPerCpuUsage()                           {
-  try {
-    const output = child_process.execSync("top -b -n1 | head -n 12 | tail -n +8");
-    const processes = output.toString().trim().split("\n");
-    return processes.map((line) => {
-      const p = line.split(/ +/);
-      //   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
-      return { user: p[1], pid: parseInt(p[0], 10), cpuUsage: parseFloat(p[8], 10), };
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
+async function getTopProcessesPerCpuUsage()                                   {
+  const ret = await shell("top -b -n1 | head -n 12 | tail -n +8");
+  const processes = ret.stdout.toString().trim().split("\n");
+  return processes.map((line) => {
+    const p = line.split(/ +/);
+    //   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+    return { user: p[1], pid: parseInt(p[0], 10), cpuUsage: parseFloat(p[8], 10), };
+  });
 }
 
 // PID -> number of consecutive cycles a PID has been using >90% CPU
 let topProcessUsageMap                                                      = new Map();
 
-function updateCentovaResourceHogsMap()       {
-  const topProcesses = getTopProcessesPerCpuUsage();
-  if (!topProcesses) {
-    console.error("killCentovaResourceHogs: Failed to get top processes per CPU usage");
-    return false;
-  }
+async function updateCentovaResourceHogsMap() {
+  const topProcesses = await getTopProcessesPerCpuUsage();
 
   topProcessUsageMap.forEach((entry) => entry.stale = true);
 
@@ -87,39 +79,47 @@ function updateCentovaResourceHogsMap()       {
     if (iterator[1].stale)
       topProcessUsageMap.delete(iterator[0]);
   }
-
-  return true;
 }
 
-function killCentovaResourceHogs() {
+async function killCentovaResourceHogs() {
   for (const iterator of topProcessUsageMap.entries()) {
     if (iterator[1].overuseCycles < 30)
       continue;
 
     // Now kill the process
     const pid         = iterator[0];
-    console.error("killCentovaResourceHogs: SIGKILL " + pid);
-    const ret = child_process.spawnSync("/bin/kill", ["-9", pid.toString()]);
-
-    if (ret.error) {
-      console.error("killCentovaResourceHogs: Failed to kill PID " + pid);
-      continue;
+    log("killCentovaResourceHogs: SIGKILL " + pid);
+    try {
+      await exec("/bin/kill", ["-9", pid.toString()]);
+      topProcessUsageMap.delete(pid);
+    } catch (error) {
+      logError(error, "killCentovaResourceHogs: Failed to kill PID " + pid);
     }
-
-    // Remove the entry, since the process has been killed
-    topProcessUsageMap.delete(pid);
   }
 }
 
-function mainLoop() {
-  ensureCentovaServicesRunning();
+async function isUpdateRunning()                {
+  try {
+    await exec("/usr/bin/pgrep", ["-f", "/usr/local/centovacast/sbin/update"]);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function mainLoop() {
+  if (await isUpdateRunning()) {
+    return;
+  }
+
+  await ensureServicesRunning();
 
   // Check if Centova processes (streaming software) are using too much CPU (>85%)
   // for 30 cycles: if so, kill them
-  updateCentovaResourceHogsMap();
-  killCentovaResourceHogs();
+  await updateCentovaResourceHogsMap();
+  await killCentovaResourceHogs();
 }
 
-console.log("Monitoring started");
+log("Monitoring started");
 mainLoop();
 setInterval(mainLoop, 500);
