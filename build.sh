@@ -1,4 +1,4 @@
 #!/bin/sh
 
 mkdir build
-exec flow-remove-types --out-file build/main.js main.js
+exec flow-remove-types --out-dir build/ src/
