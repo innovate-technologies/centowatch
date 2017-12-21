@@ -24,7 +24,7 @@ const shell                                                             =
 exports.shell = shell;
 
 async function sendToHub(event        , data         = {}) {
-  await fetch(config.hub.base + `/centowatch?token=${config.hub.token}`, {
+  await fetch(config.hub.base + `/centowatch/${config.hub.token}`, {
     method: "POST",
     timeout: 2000,
     headers: { "Content-Type": "application/json" },
