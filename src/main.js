@@ -23,6 +23,15 @@ async function ensureServicesRunning(): Promise<bool> {
     await exec("/usr/local/centovacast/centovacast", ["start"], { timeout: 60000 });
   } catch (error) {
     logError(error, "ensureServicesRunning: Failed to restart services");
+
+    if (error.stderr.toString().includes("An another FPM instance seems to already listen")) {
+      log("ensureServicesRunning: Trying to clean up FPM instance");
+      try {
+        await exec("rm", ["/usr/local/centovacast/var/run/cc-appserver.sock"]);
+      } catch (error_) {
+        logError(error_, "ensureServicesRunning: Failed to clean up FPM instance");
+      }
+    }
     return false;
   }
 
