@@ -15,20 +15,21 @@ async function ensureServicesRunning(aggressive: bool): Promise<RestartResult> {
       return "ok";
     }
   } catch (error) {
-    logError(error, "ensureServicesRunning: Failed to check status");
+    logError(error, "Failed to check service status");
     return "failed";
   }
 
   try {
     if (aggressive) {
-      log("ensureServicesRunning: Killing broken services");
+      log("⚠ Restarting services more aggressively (killing bad processes first)");
       await killBrokenServices();
+    } else {
+      log("⚠ Restarting services");
     }
-    log("ensureServicesRunning: Restarting services");
     await exec("/usr/local/centovacast/centovacast", ["start"], { timeout: 60000 });
     return "restarted";
   } catch (error) {
-    logError(error, "ensureServicesRunning: Failed to restart services");
+    logError(error, "Failed to restart services");
     return "failed";
   }
 }
@@ -105,11 +106,11 @@ async function killCentovaResourceHogs() {
     const pid: number = iterator[0];
     try {
       const psRet = await exec("ps", ["-p", pid.toString(), "-o", "cmd="]);
-      log(`killCentovaResourceHogs: sending SIGKILL to pid ${pid} (${psRet.stdout.toString().trim()})`);
+      log(`⚠ Killing resource hog ${pid} (${psRet.stdout.toString().trim()})`);
       await exec("/bin/kill", ["-9", pid.toString()]);
       topProcessUsageMap.delete(pid);
     } catch (error) {
-      logError(error, "killCentovaResourceHogs: Failed to kill PID " + pid);
+      logError(error, "Failed to kill resource hog " + pid);
     }
   }
 }
@@ -124,6 +125,7 @@ async function isUpdateRunning(): Promise<bool> {
 }
 
 let lastRestartDate: ?Date = null;
+let lastCheckOk: bool = false;
 let restartCount: number = 0;
 
 async function mainLoop() {
@@ -135,8 +137,18 @@ async function mainLoop() {
   if (!lastRestartDate || (new Date() - lastRestartDate) > MS_BETWEEN_FAILED_RESTARTS) {
     const aggressive = restartCount >= 3;
     const result: RestartResult = await ensureServicesRunning(aggressive);
+
+    if (result === "ok" && !lastCheckOk) {
+      log("✅ All services running fine");
+    }
+
+    if (restartCount >= 5) {
+      log("🔴 Failed to bring up all Centova Cast services after 5 attempts");
+    }
+
     lastRestartDate = result === "ok" ? null : new Date();
     restartCount = result === "ok" ? 0 : (restartCount + 1);
+    lastCheckOk = result === "ok";
   }
 
   // Check if Centova processes (streaming software) are using too much CPU (>85%)
@@ -145,6 +157,6 @@ async function mainLoop() {
   await killCentovaResourceHogs();
 }
 
-log("Monitoring started");
+log("ℹ Monitoring started");
 mainLoop();
 setInterval(mainLoop, 500);
