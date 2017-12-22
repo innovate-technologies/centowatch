@@ -88,8 +88,9 @@ async function killCentovaResourceHogs() {
 
     // Now kill the process
     const pid         = iterator[0];
-    log("killCentovaResourceHogs: SIGKILL " + pid);
     try {
+      const psRet = await exec("ps", ["-p", pid.toString(), "-o", "cmd="]);
+      log(`killCentovaResourceHogs: sending SIGKILL to pid ${pid} (${psRet.stdout.toString()})`);
       await exec("/bin/kill", ["-9", pid.toString()]);
       topProcessUsageMap.delete(pid);
     } catch (error) {
