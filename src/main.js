@@ -5,17 +5,18 @@
 const { exec, log, logError, shell } = require("./util");
 
 // Check if Centova services are running: if not, restart them
-async function ensureServicesRunning(): Promise<bool> {
+type RestartResult = "ok" | "restarted" | "failed";
+async function ensureServicesRunning(): Promise<RestartResult> {
   try {
     const ret = await exec("/usr/local/centovacast/centovacast", ["status"], { timeout: 60000 });
     const statuses: Array<string> = ret.stdout.toString().trim().split("\n");
     const allStarted: bool = statuses.every((status) => status.includes("running (pid"));
     if (allStarted) {
-      return true;
+      return "ok";
     }
   } catch (error) {
     logError(error, "ensureServicesRunning: Failed to check status");
-    return false;
+    return "failed";
   }
 
   log("ensureServicesRunning: Restarting services");
@@ -32,10 +33,10 @@ async function ensureServicesRunning(): Promise<bool> {
         logError(error_, "ensureServicesRunning: Failed to clean up FPM instance");
       }
     }
-    return false;
+    return "failed";
   }
 
-  return true;
+  return "restarted";
 }
 
 type ProcessUsageInfo = {
@@ -113,7 +114,7 @@ async function isUpdateRunning(): Promise<bool> {
   }
 }
 
-let lastFailedRestartDate: ?Date = null;
+let lastRestartDate: ?Date = null;
 
 async function mainLoop() {
   if (await isUpdateRunning()) {
@@ -121,9 +122,9 @@ async function mainLoop() {
   }
 
   const MS_BETWEEN_FAILED_RESTARTS = 15 * 1000;
-  if (!lastFailedRestartDate || (new Date() - lastFailedRestartDate) > MS_BETWEEN_FAILED_RESTARTS) {
-    const ok: bool = await ensureServicesRunning();
-    lastFailedRestartDate = ok ? null : new Date();
+  if (!lastRestartDate || (new Date() - lastRestartDate) > MS_BETWEEN_FAILED_RESTARTS) {
+    const result: RestartResult = await ensureServicesRunning();
+    lastRestartDate = result === "ok" ? null : new Date();
   }
 
   // Check if Centova processes (streaming software) are using too much CPU (>85%)
