@@ -42,6 +42,7 @@ type ProcessUsageInfo = {
   pid: number,
   user: string,
   cpuUsage: number,
+  command: string,
 };
 
 async function getTopProcessesPerCpuUsage(): Promise<Array<ProcessUsageInfo>> {
@@ -50,7 +51,8 @@ async function getTopProcessesPerCpuUsage(): Promise<Array<ProcessUsageInfo>> {
   return processes.map((line) => {
     const p = line.split(/ +/);
     //   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
-    return { user: p[1], pid: parseInt(p[0], 10), cpuUsage: parseFloat(p[8], 10), };
+    return { user: p[1], pid: parseInt(p[0], 10), cpuUsage: parseFloat(p[8], 10),
+             command: p.splice(11).join(" ") };
   });
 }
 
@@ -64,7 +66,10 @@ async function updateCentovaResourceHogsMap() {
 
   // Update the usage map
   // Increment the overuse cycle count for ccuser processes that have been using over 90% CPU
-  topProcesses.filter((processInfo) => processInfo.user == "ccuser" && processInfo.cpuUsage >= 90)
+  topProcesses.filter((processInfo) =>
+      processInfo.user == "ccuser" && processInfo.cpuUsage >= 90 &&
+      !processInfo.command.includes("mp3gain")
+  )
     .forEach((processInfo) => {
       const entry = topProcessUsageMap.get(processInfo.pid);
 
