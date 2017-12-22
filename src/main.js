@@ -113,12 +113,18 @@ async function isUpdateRunning(): Promise<bool> {
   }
 }
 
+let lastFailedRestartDate: ?Date = null;
+
 async function mainLoop() {
   if (await isUpdateRunning()) {
     return;
   }
 
-  await ensureServicesRunning();
+  const MS_BETWEEN_FAILED_RESTARTS = 15 * 1000;
+  if (!lastFailedRestartDate || (new Date() - lastFailedRestartDate) > MS_BETWEEN_FAILED_RESTARTS) {
+    const ok: bool = await ensureServicesRunning();
+    lastFailedRestartDate = ok ? null : new Date();
+  }
 
   // Check if Centova processes (streaming software) are using too much CPU (>85%)
   // for 30 cycles: if so, kill them
