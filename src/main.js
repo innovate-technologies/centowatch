@@ -151,12 +151,10 @@ async function mainLoop() {
     lastCheckOk = result === "ok";
   }
 
-  // Check if Centova processes (streaming software) are using too much CPU (>85%)
-  // for 30 cycles: if so, kill them
-  await updateCentovaResourceHogsMap();
   await killCentovaResourceHogs();
+  setTimeout(mainLoop, 1000);
 }
 
+setInterval(updateCentovaResourceHogsMap, 1000);
 log("ℹ Monitoring started");
 mainLoop();
-setInterval(mainLoop, 500);
