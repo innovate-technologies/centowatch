@@ -90,7 +90,7 @@ async function killCentovaResourceHogs() {
     const pid         = iterator[0];
     try {
       const psRet = await exec("ps", ["-p", pid.toString(), "-o", "cmd="]);
-      log(`killCentovaResourceHogs: sending SIGKILL to pid ${pid} (${psRet.stdout.toString()})`);
+      log(`killCentovaResourceHogs: sending SIGKILL to pid ${pid} (${psRet.stdout.toString().trim()})`);
       await exec("/bin/kill", ["-9", pid.toString()]);
       topProcessUsageMap.delete(pid);
     } catch (error) {
