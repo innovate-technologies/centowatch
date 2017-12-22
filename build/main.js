@@ -5,37 +5,47 @@
 const { exec, log, logError, shell } = require("./util");
 
 // Check if Centova services are running: if not, restart them
-async function ensureServicesRunning()                {
+                                                   
+async function ensureServicesRunning(aggressive      )                         {
   try {
     const ret = await exec("/usr/local/centovacast/centovacast", ["status"], { timeout: 60000 });
     const statuses                = ret.stdout.toString().trim().split("\n");
     const allStarted       = statuses.every((status) => status.includes("running (pid"));
     if (allStarted) {
-      return true;
+      return "ok";
     }
   } catch (error) {
     logError(error, "ensureServicesRunning: Failed to check status");
-    return false;
+    return "failed";
   }
 
-  log("ensureServicesRunning: Restarting services");
   try {
+    if (aggressive) {
+      log("ensureServicesRunning: Killing broken services");
+      await killBrokenServices();
+    }
+    log("ensureServicesRunning: Restarting services");
     await exec("/usr/local/centovacast/centovacast", ["start"], { timeout: 60000 });
+    return "restarted";
   } catch (error) {
     logError(error, "ensureServicesRunning: Failed to restart services");
-
-    if (error.stderr.toString().includes("An another FPM instance seems to already listen")) {
-      log("ensureServicesRunning: Trying to clean up FPM instance");
-      try {
-        await exec("rm", ["/usr/local/centovacast/var/run/cc-appserver.sock"]);
-      } catch (error_) {
-        logError(error_, "ensureServicesRunning: Failed to clean up FPM instance");
-      }
-    }
-    return false;
+    return "failed";
   }
+}
 
-  return true;
+async function killBrokenServices() {
+  const ret = await exec("/usr/local/centovacast/centovacast", ["status"], { timeout: 60000 });
+  const statuses                = ret.stdout.toString().trim().split("\n");
+  const failedServices                =
+      statuses.filter((status) => !status.includes("running (pid"))
+              .map((status) => status.split(":")[0]);
+
+  for (const service of failedServices) {
+    try {
+      await exec("pkill", [service]);
+      await exec("pkill", [service.replace("cc-", "")]);
+    } catch (_) {}
+  }
 }
 
                          
@@ -113,12 +123,21 @@ async function isUpdateRunning()                {
   }
 }
 
+let lastRestartDate        = null;
+let restartCount         = 0;
+
 async function mainLoop() {
   if (await isUpdateRunning()) {
     return;
   }
 
-  await ensureServicesRunning();
+  const MS_BETWEEN_FAILED_RESTARTS = 15 * 1000;
+  if (!lastRestartDate || (new Date() - lastRestartDate) > MS_BETWEEN_FAILED_RESTARTS) {
+    const aggressive = restartCount >= 3;
+    const result                = await ensureServicesRunning(aggressive);
+    lastRestartDate = result === "ok" ? null : new Date();
+    restartCount = result === "ok" ? 0 : (restartCount + 1);
+  }
 
   // Check if Centova processes (streaming software) are using too much CPU (>85%)
   // for 30 cycles: if so, kill them
