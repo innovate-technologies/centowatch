@@ -78,7 +78,7 @@ async function updateCentovaResourceHogsMap() {
   // Update the usage map
   // Increment the overuse cycle count for ccuser processes that have been using over 90% CPU
   topProcesses.filter((processInfo) =>
-      processInfo.user == "ccuser" && processInfo.cpuUsage >= 90 &&
+      processInfo.user == "ccuser" && processInfo.cpuUsage >= 80 &&
       !processInfo.command.includes("mp3gain")
   )
     .forEach((processInfo) => {
