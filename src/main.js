@@ -7,11 +7,10 @@ const { exec, log, logError, shell } = require("./util");
 // Check if Centova services are running: if not, restart them
 type RestartResult = "ok" | "restarted" | "failed";
 async function ensureServicesRunning(aggressive: bool): Promise<RestartResult> {
+  let failedServices: Array<string>;
   try {
-    const ret = await exec("/usr/local/centovacast/centovacast", ["status"], { timeout: 60000 });
-    const statuses: Array<string> = ret.stdout.toString().trim().split("\n");
-    const allStarted: bool = statuses.every((status) => status.includes("running (pid"));
-    if (allStarted) {
+    failedServices = await getDownServices();
+    if (failedServices.length == 0) {
       return "ok";
     }
   } catch (error) {
@@ -21,10 +20,10 @@ async function ensureServicesRunning(aggressive: bool): Promise<RestartResult> {
 
   try {
     if (aggressive) {
-      log("⚠ Restarting services more aggressively (killing bad processes first)");
+      log(`⚠ Killing and restarting services: ${failedServices.join(" ")}`);
       await killBrokenServices();
     } else {
-      log("⚠ Restarting services");
+      log(`⚠ Restarting services: ${failedServices.join(" ")}`);
     }
     await exec("/usr/local/centovacast/centovacast", ["start"], { timeout: 60000 });
     return "restarted";
@@ -34,13 +33,15 @@ async function ensureServicesRunning(aggressive: bool): Promise<RestartResult> {
   }
 }
 
-async function killBrokenServices() {
+async function getDownServices(): Promise<Array<string>> {
   const ret = await exec("/usr/local/centovacast/centovacast", ["status"], { timeout: 60000 });
   const statuses: Array<string> = ret.stdout.toString().trim().split("\n");
-  const failedServices: Array<string> =
-      statuses.filter((status) => !status.includes("running (pid"))
-              .map((status) => status.split(":")[0]);
+  return statuses.filter((status) => !status.includes("running (pid"))
+      .map((status) => status.split(":")[0]);
+}
 
+async function killBrokenServices() {
+  const failedServices: Array<string> = await getDownServices();
   for (const service of failedServices) {
     try {
       await exec("pkill", [service]);
