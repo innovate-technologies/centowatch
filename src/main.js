@@ -116,24 +116,11 @@ async function killCentovaResourceHogs() {
   }
 }
 
-async function isUpdateRunning(): Promise<bool> {
-  try {
-    await exec("/usr/bin/pgrep", ["-f", "/usr/local/centovacast/sbin/update"]);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
 let lastRestartDate: ?Date = null;
 let lastCheckOk: bool = false;
 let restartCount: number = 0;
 
 async function mainLoop() {
-  if (await isUpdateRunning()) {
-    return;
-  }
-
   const MS_BETWEEN_FAILED_RESTARTS = 15 * 1000;
   if (!lastRestartDate || (new Date() - lastRestartDate) > MS_BETWEEN_FAILED_RESTARTS) {
     const aggressive = restartCount >= 3;
